@@ -88,7 +88,7 @@ class DaggerAPI {
 };
 
 module.exports = (api_token) => {
-    const api = DaggerAPI(api_token)
+    const api = new DaggerAPI(api_token)
 
     if(process.env._HANDLER) {
         console.log('Dagger initializing on Lambda');
