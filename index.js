@@ -6,25 +6,7 @@ function _isPromise(obj) {
     return obj && obj.then && typeof obj.then === 'function';
 }
 
-const sendTaskStatus = async (status, task_name, id, input, output, metadata) => {
-    const body = {
-        status,
-        task_name,
-        id,
-        input,
-        output,
-        metadata
-    };
-
-    await fetch('https://api.getdagger.com/v1/tasks/status', {
-        method: 'post',
-        body: JSON.stringify(body),
-        headers: { 'Content-Type': 'application/json' }
-    });
-};
-
-const monkeypatchLambdaHandler = (handler_path) => {
-    // lewl I did it
+const monkeypatchLambdaHandler = (api) => {
     const Runtime = require.cache['/var/runtime/Runtime.js'].exports;
     const previous_handleOnce = Runtime.prototype.handleOnce;
     const new_handleOnce = function() {
@@ -45,7 +27,7 @@ const monkeypatchLambdaHandler = (handler_path) => {
             };
             const input = event;
 
-            await sendTaskStatus('started', name, id, input, {}, metadata);
+            await api.sendTaskStatus('started', name, id, input, {}, metadata);
 
             try {
                 return_value = previous_handler.apply(this, arguments);
@@ -58,14 +40,14 @@ const monkeypatchLambdaHandler = (handler_path) => {
                     return_value = {return_value};
                 }
 
-                await sendTaskStatus('succeeded', name, id, input, return_value, metadata);
+                await api.sendTaskStatus('succeeded', name, id, input, return_value, metadata);
             } catch(error) {
                 const error_object = {
                     name: error.name,
                     message: error.message,
                     stack: error.stack
                 };
-                await sendTaskStatus('failed', name, id, input, error_object, metadata);
+                await api.sendTaskStatus('failed', name, id, input, error_object, metadata);
 
                 throw error;
             }
@@ -80,10 +62,45 @@ const monkeypatchLambdaHandler = (handler_path) => {
 };
 
 // Lambda Runtime uses setImmediete, so we use nextTick, which runs before that
-process.nextTick(() => {
-    try {
-        monkeypatchLambdaHandler(process.env._HANDLER);
-    } catch(error) {
-        console.log(error);
+
+class DaggerAPI {
+    constructor(api_token) {
+        this.api_token = api_token;
     }
-});
+
+    async sendTaskStatus(status, task_name, id, input, output, metadata) => {
+        const body = {
+            status,
+            task_name,
+            id,
+            input,
+            output,
+            metadata,
+            api_token: this.api_token
+        };
+    
+        await fetch('https://api.getdagger.com/v1/tasks/status', {
+            method: 'post',
+            body: JSON.stringify(body),
+            headers: { 'Content-Type': 'application/json' }
+        });
+    };
+};
+
+module.exports = (api_token) => {
+    const api = DaggerAPI(api_token)
+
+    if(process.env._HANDLER) {
+        console.log('Dagger initializing on Lambda');
+
+        process.nextTick(() => {
+            try {
+                monkeypatchLambdaHandler(api);
+            } catch(error) {
+                console.log(error);
+            }
+        });
+    }
+
+    return api;
+};
