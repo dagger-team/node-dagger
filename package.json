@@ -1,6 +1,6 @@
 {
   "name": "node-dagger",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Status reporting library for getdagger.com (NOTE: This is a prototype and should not be used until futher notice)",
   "main": "index.js",
   "scripts": {

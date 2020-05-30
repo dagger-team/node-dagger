@@ -68,7 +68,7 @@ class DaggerAPI {
         this.api_token = api_token;
     }
 
-    async sendTaskStatus(status, task_name, id, input, output, metadata) => {
+    async sendTaskStatus(status, task_name, id, input, output, metadata) {
         const body = {
             status,
             task_name,
